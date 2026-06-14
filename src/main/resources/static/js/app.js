@@ -6,6 +6,7 @@ let searchTimeout = null;
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
 async function init() {
+  await authInit();   // restore session first so role-based UI is ready
   await loadProducts();
   buildHeroTiles();
 }
@@ -23,6 +24,7 @@ async function loadProducts(category, search) {
     products = await res.json();
     renderProducts(products);
     buildCategoryPills(products);
+    applyRoleUI(); // re-apply after render (cards have role-gated buttons)
   } catch (e) {
     grid.innerHTML = '<div class="spinner">⚠ Could not connect to server.<br/>Is Spring Boot running?</div>';
   }
@@ -37,10 +39,15 @@ function renderProducts(list) {
     return;
   }
 
+  const canManage = isRole('SELLER', 'ADMIN');
+
   grid.innerHTML = list.map(p => {
     const stockLabel = p.stock === 0 ? 'Out of stock' : p.stock <= 5 ? `Only ${p.stock} left` : `${p.stock} in stock`;
     const stockClass = p.stock === 0 ? 'out' : p.stock <= 5 ? 'low' : '';
     const img = p.imageUrl || `https://picsum.photos/seed/${p.id}/400/300`;
+    const editBtn = canManage
+      ? `<button class="add-btn" onclick="editProduct('${p.id}')" style="background:#555">✎</button>`
+      : '';
     return `
     <div class="card">
       <img class="card-img" src="${img}" alt="${p.name}" onerror="this.src='https://picsum.photos/seed/${p.id}/400/300'"/>
@@ -54,7 +61,7 @@ function renderProducts(list) {
             <div class="card-stock ${stockClass}">${stockLabel}</div>
           </div>
           <div style="display:flex;gap:0.4rem">
-            <button class="add-btn" onclick="editProduct('${p.id}')" style="background:#555">✎</button>
+            ${editBtn}
             <button class="add-btn" onclick="addToCart('${p.id}')" ${p.stock === 0 ? 'disabled' : ''}>Add</button>
           </div>
         </div>
@@ -178,6 +185,14 @@ function removeFromCart(id) {
 // ── CHECKOUT ──────────────────────────────────────────────────────────────────
 function openCheckout() {
   if (cart.length === 0) { showToast('Your cart is empty', true); return; }
+
+  if (!isLoggedIn()) {
+    closeCart();
+    showToast('Please log in to place an order', true);
+    openLogin();
+    return;
+  }
+
   const summary = document.getElementById('orderSummary');
   const total = cart.reduce((s, i) => s + i.price * i.qty, 0);
   summary.innerHTML = `
@@ -186,6 +201,13 @@ function openCheckout() {
     <div class="order-line" style="margin-top:0.5rem;font-weight:600;border-top:1px solid #ccc;padding-top:0.5rem">
       <span>Total</span><span>$${total.toFixed(2)}</span>
     </div>`;
+
+  // Pre-fill name from session
+  if (currentUser) {
+    document.getElementById('custName').value = currentUser.name;
+    document.getElementById('custEmail').value = currentUser.email;
+  }
+
   closeCart();
   document.getElementById('checkoutOverlay').classList.add('open');
 }
@@ -196,7 +218,9 @@ function closeCheckout() {
 }
 
 async function placeOrder() {
-  const name = document.getElementById('custName').value.trim();
+  if (!isLoggedIn()) { openLogin(); return; }
+
+  const name  = document.getElementById('custName').value.trim();
   const email = document.getElementById('custEmail').value.trim();
   if (!name || !email) { showToast('Please fill in your name and email', true); return; }
 
@@ -212,11 +236,7 @@ async function placeOrder() {
   };
 
   try {
-    const res = await fetch(`${API}/orders`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(order)
-    });
+    const res = await fetch(`${API}/orders`, authFetchOptions('POST', order));
     if (!res.ok) {
       const err = await res.json();
       showToast(err.error || 'Order failed', true);
@@ -232,8 +252,9 @@ async function placeOrder() {
   }
 }
 
-// ── ADMIN ──────────────────────────────────────────────────────────────────────
+// ── ADMIN: PRODUCTS ───────────────────────────────────────────────────────────
 function openAdmin() {
+  if (!isRole('SELLER', 'ADMIN')) { showToast('Seller or Admin access required', true); return; }
   editingId = null;
   document.getElementById('adminTitle').textContent = 'Add Product';
   document.getElementById('adminSubmitBtn').textContent = 'Add Product';
@@ -242,6 +263,7 @@ function openAdmin() {
 }
 
 function editProduct(id) {
+  if (!isRole('SELLER', 'ADMIN')) { showToast('Seller or Admin access required', true); return; }
   const p = products.find(x => x.id === id);
   if (!p) return;
   editingId = id;
@@ -277,11 +299,7 @@ async function submitProduct() {
   try {
     const url = editingId ? `${API}/products/${editingId}` : `${API}/products`;
     const method = editingId ? 'PUT' : 'POST';
-    const res = await fetch(url, {
-      method,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
+    const res = await fetch(url, authFetchOptions(method, body));
     if (!res.ok) { showToast('Failed to save product', true); return; }
     closeAdmin();
     showToast(editingId ? 'Product updated' : 'Product added');
