@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+    <springProperty scope="context" name="appName"        source="spring.application.name"       defaultValue="vault"/>
+    <springProperty scope="context" name="yandexApiKey"   source="logging.yandex.api-key"        defaultValue=""/>
+    <springProperty scope="context" name="yandexGroupId"  source="logging.yandex.log-group-id"   defaultValue=""/>
+
+    <!-- ── CONSOLE (IDEA) ─────────────────────────────────────────────────── -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} %highlight(%-5level) %cyan([%-15thread]) %yellow(%-40logger{40}) - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- ── ROLLING FILE ───────────────────────────────────────────────────── -->
+    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>logs/vault.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>logs/vault.%d{yyyy-MM-dd}.log</fileNamePattern>
+            <maxHistory>30</maxHistory>
+        </rollingPolicy>
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- ── YANDEX CLOUD LOGGING ───────────────────────────────────────────── -->
+    <appender name="YANDEX" class="com.example.sales_test_1.logging.YandexCloudLoggingAppender">
+        <apiKey>${yandexApiKey}</apiKey>
+        <logGroupId>${yandexGroupId}</logGroupId>
+        <appName>${appName}</appName>
+    </appender>
+
+    <!-- Wrap in async so HTTP calls never block request threads -->
+    <appender name="ASYNC_YANDEX" class="ch.qos.logback.classic.AsyncAppender">
+        <appender-ref ref="YANDEX"/>
+        <queueSize>512</queueSize>
+        <discardingThreshold>0</discardingThreshold>
+        <includeCallerData>true</includeCallerData>
+    </appender>
+
+    <!-- ── NOISE REDUCTION ────────────────────────────────────────────────── -->
+    <logger name="org.springframework"                   level="WARN"/>
+    <logger name="org.springframework.web"               level="INFO"/>
+    <logger name="org.mongodb.driver"                    level="WARN"/>
+    <logger name="org.springframework.data.mongodb.core" level="WARN"/>
+    <logger name="io.lettuce"                            level="WARN"/>
+    <logger name="org.springframework.data.redis"        level="WARN"/>
+
+    <!-- ── OUR APP AT DEBUG ───────────────────────────────────────────────── -->
+    <logger name="com.example.sales_test_1" level="DEBUG"/>
+
+    <!-- ── ROOT ──────────────────────────────────────────────────────────── -->
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="FILE"/>
+        <appender-ref ref="ASYNC_YANDEX"/>
+    </root>
+
+</configuration>

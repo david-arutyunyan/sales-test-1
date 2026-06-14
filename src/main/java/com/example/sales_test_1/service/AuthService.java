@@ -9,6 +9,8 @@ import com.example.sales_test_1.model.UserRole;
 import com.example.sales_test_1.repository.UserRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -21,25 +23,28 @@ import java.util.concurrent.TimeUnit;
 @Service
 public class AuthService {
 
+    private static final Logger log = LoggerFactory.getLogger(AuthService.class);
     private static final String SESSION_PREFIX = "session:";
 
     private final UserRepository userRepository;
     private final StringRedisTemplate redis;
     private final ObjectMapper objectMapper;
-    private final BCryptPasswordEncoder passwordEncoder;
+    private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     @Value("${app.session.ttl:86400}")
     private long sessionTtlSeconds;
 
-    public AuthService(UserRepository userRepository, StringRedisTemplate redis) {
+    public AuthService(UserRepository userRepository, StringRedisTemplate redis, ObjectMapper objectMapper) {
         this.userRepository = userRepository;
         this.redis = redis;
-        this.objectMapper = new ObjectMapper();
-        this.passwordEncoder = new BCryptPasswordEncoder();
+        this.objectMapper = objectMapper;
     }
 
     public AuthResponse register(RegisterRequest req) {
+        log.info("Registration attempt for email: {}", req.getEmail());
+
         if (userRepository.existsByEmail(req.getEmail())) {
+            log.warn("Registration rejected — email already exists: {}", req.getEmail());
             throw new IllegalArgumentException("Email already registered");
         }
 
@@ -59,34 +64,58 @@ public class AuthService {
                 LocalDateTime.now()
         );
         user = userRepository.save(user);
+        log.info("User registered: {} [{}] with role {}", user.getName(), user.getEmail(), user.getRole());
 
         return createSession(user);
     }
 
     public AuthResponse login(LoginRequest req) {
+        log.info("Login attempt for email: {}", req.getEmail());
+
         User user = userRepository.findByEmail(req.getEmail().toLowerCase().trim())
-                .orElseThrow(() -> new IllegalArgumentException("Invalid email or password"));
+                .orElseThrow(() -> {
+                    log.warn("Login failed — no account found for: {}", req.getEmail());
+                    return new IllegalArgumentException("Invalid email or password");
+                });
 
         if (!passwordEncoder.matches(req.getPassword(), user.getPassword())) {
+            log.warn("Login failed — wrong password for: {}", req.getEmail());
             throw new IllegalArgumentException("Invalid email or password");
         }
 
+        log.info("Login successful: {} [{}] role={}", user.getName(), user.getEmail(), user.getRole());
         return createSession(user);
     }
 
     public void logout(String token) {
-        redis.delete(SESSION_PREFIX + token);
+        String key = SESSION_PREFIX + token;
+        String json = redis.opsForValue().get(key);
+        if (json != null) {
+            try {
+                SessionInfo info = objectMapper.readValue(json, SessionInfo.class);
+                log.info("Logout: {} [{}]", info.getName(), info.getEmail());
+            } catch (JsonProcessingException ignored) {}
+        }
+        redis.delete(key);
+        log.debug("Session deleted: {}…", token.substring(0, 8));
     }
 
     public SessionInfo validateSession(String token) {
         if (token == null || token.isBlank()) return null;
+        log.debug("Validating session token: {}…", token.substring(0, 8));
+
         String json = redis.opsForValue().get(SESSION_PREFIX + token);
-        if (json == null) return null;
+        if (json == null) {
+            log.debug("Session not found or expired for token: {}…", token.substring(0, 8));
+            return null;
+        }
         try {
-            // Refresh TTL on active use
             redis.expire(SESSION_PREFIX + token, sessionTtlSeconds, TimeUnit.SECONDS);
-            return objectMapper.readValue(json, SessionInfo.class);
+            SessionInfo info = objectMapper.readValue(json, SessionInfo.class);
+            log.debug("Session valid for: {} [{}]", info.getName(), info.getEmail());
+            return info;
         } catch (JsonProcessingException e) {
+            log.error("Failed to deserialize session for token: {}…", token.substring(0, 8), e);
             return null;
         }
     }
@@ -97,7 +126,9 @@ public class AuthService {
         try {
             String json = objectMapper.writeValueAsString(info);
             redis.opsForValue().set(SESSION_PREFIX + token, json, sessionTtlSeconds, TimeUnit.SECONDS);
+            log.debug("Session created for {} — token: {}… TTL={}s", user.getEmail(), token.substring(0, 8), sessionTtlSeconds);
         } catch (JsonProcessingException e) {
+            log.error("Failed to serialize session for user: {}", user.getEmail(), e);
             throw new RuntimeException("Failed to create session", e);
         }
         return new AuthResponse(token, user.getId(), user.getEmail(), user.getName(), user.getRole());
