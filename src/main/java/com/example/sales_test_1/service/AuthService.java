@@ -34,10 +34,10 @@ public class AuthService {
     @Value("${app.session.ttl:86400}")
     private long sessionTtlSeconds;
 
-    public AuthService(UserRepository userRepository, StringRedisTemplate redis, ObjectMapper objectMapper) {
+    public AuthService(UserRepository userRepository, StringRedisTemplate redis) {
         this.userRepository = userRepository;
         this.redis = redis;
-        this.objectMapper = objectMapper;
+        this.objectMapper = new ObjectMapper();
     }
 
     public AuthResponse register(RegisterRequest req) {
