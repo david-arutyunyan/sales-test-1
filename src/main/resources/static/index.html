@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>VAULT — Curated Store</title>
+<link rel="stylesheet" href="css/styles.css"/>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="logo">VAULT<span>.</span></div>
+  <div class="nav-links">
+    <a onclick="scrollToProducts()">Shop</a>
+    <a onclick="openAdmin()">Admin</a>
+  </div>
+  <button class="cart-btn" onclick="openCart()">
+    Cart <span class="cart-count" id="cartCount">0</span>
+  </button>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-text">
+    <p class="hero-eyebrow">New season, curated picks</p>
+    <h1 class="hero-title">Less noise.<br>Better things.</h1>
+    <p class="hero-sub">Everything in our store is chosen for quality over quantity. No fluff, no filler — just objects worth owning.</p>
+  </div>
+  <div class="hero-visual">
+    <div class="hero-visual-inner" id="heroTiles"></div>
+  </div>
+</section>
+
+<!-- TOOLBAR -->
+<div class="toolbar">
+  <div class="search-wrap">
+    <span class="search-icon">🔍</span>
+    <input type="text" id="searchInput" placeholder="Search products…" oninput="handleSearch(this.value)"/>
+  </div>
+  <div class="filter-pills" id="filterPills">
+    <button class="pill active" onclick="filterCategory(null, this)">All</button>
+  </div>
+  <div class="toolbar-right">
+    <button class="btn-admin" onclick="openAdmin()">+ Add Product</button>
+  </div>
+</div>
+
+<!-- PRODUCTS -->
+<section class="products-section" id="productsSection">
+  <div class="section-meta">
+    <h2 class="section-title">Products</h2>
+    <span class="section-count" id="productCount"></span>
+  </div>
+  <div class="grid" id="productGrid">
+    <div class="spinner">Loading products…</div>
+  </div>
+</section>
+
+<!-- CART OVERLAY + PANEL -->
+<div class="overlay" id="overlay" onclick="closeCart()"></div>
+<div class="panel" id="cartPanel">
+  <div class="panel-header">
+    <span class="panel-title">Your Cart</span>
+    <button class="close-btn" onclick="closeCart()">✕</button>
+  </div>
+  <div class="panel-body" id="cartBody"></div>
+  <div class="panel-footer">
+    <div class="cart-total">
+      <span class="cart-total-label">Total</span>
+      <span class="cart-total-val" id="cartTotal">$0.00</span>
+    </div>
+    <button class="checkout-btn" onclick="openCheckout()">Proceed to Checkout</button>
+  </div>
+</div>
+
+<!-- CHECKOUT MODAL -->
+<div class="modal-overlay" id="checkoutOverlay">
+  <div class="modal">
+    <h2>Checkout</h2>
+    <div class="form-row">
+      <label>Full Name</label>
+      <input type="text" id="custName" placeholder="Jane Smith"/>
+    </div>
+    <div class="form-row">
+      <label>Email</label>
+      <input type="email" id="custEmail" placeholder="jane@example.com"/>
+    </div>
+    <div class="order-summary" id="orderSummary"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeCheckout()">Back</button>
+      <button class="btn-submit" onclick="placeOrder()">Place Order</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADMIN MODAL -->
+<div class="modal-overlay" id="adminOverlay">
+  <div class="admin-modal">
+    <h2 id="adminTitle">Add Product</h2>
+    <div class="form-row"><label>Name</label><input type="text" id="aName" placeholder="Product name"/></div>
+    <div class="form-row"><label>Description</label><input type="text" id="aDesc" placeholder="Short description"/></div>
+    <div class="form-row"><label>Price ($)</label><input type="number" id="aPrice" placeholder="0.00" step="0.01" min="0"/></div>
+    <div class="form-row"><label>Category</label><input type="text" id="aCat" placeholder="Electronics, Kitchen…"/></div>
+    <div class="form-row"><label>Stock</label><input type="number" id="aStock" placeholder="0" min="0"/></div>
+    <div class="form-row"><label>Image URL (optional)</label><input type="text" id="aImg" placeholder="https://…"/></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeAdmin()">Cancel</button>
+      <button class="btn-submit" id="adminSubmitBtn" onclick="submitProduct()">Add Product</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script src="js/app.js"></script>
+</body>
+</html>
