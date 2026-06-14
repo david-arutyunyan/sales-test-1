@@ -78,6 +78,10 @@ function applyRoleUI() {
   const usersLink = document.getElementById('usersLink');
   if (usersLink) usersLink.style.display = isAdmin ? '' : 'none';
 
+  // "Dashboard" link for sellers and admins
+  const dashLink = document.getElementById('dashboardLink');
+  if (dashLink) dashLink.style.display = canManageProducts ? '' : 'none';
+
   // "My Orders" link — show for customers and always-authenticated
   const ordersLink = document.getElementById('myOrdersLink');
   if (ordersLink) ordersLink.style.display = isLoggedIn() ? '' : 'none';
@@ -209,7 +213,7 @@ async function viewMyOrders() {
   const tbody = document.getElementById('myOrdersBody');
   tbody.innerHTML = '<tr><td colspan="4" style="padding:1rem;color:#aaa">Loading…</td></tr>';
   try {
-    const res = await fetch(`${API}/orders`, authFetchOptions());
+    const res = await fetch(`${API}/orders?email=${encodeURIComponent(currentUser.email)}`, authFetchOptions());
     const orders = await res.json();
     if (!res.ok) { tbody.innerHTML = `<tr><td colspan="4" style="color:var(--accent)">${orders.error}</td></tr>`; return; }
     if (orders.length === 0) { tbody.innerHTML = '<tr><td colspan="4" style="padding:1rem;color:#aaa">No orders yet.</td></tr>'; return; }
